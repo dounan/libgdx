@@ -67,6 +67,8 @@ public class TextField extends Widget {
 	static private final Vector2 tmp2 = new Vector2();
 	static private final Vector2 tmp3 = new Vector2();
 
+	static boolean isMac = System.getProperty("os.name").contains("Mac");
+
 	TextFieldStyle style;
 	String text, messageText;
 	private CharSequence displayText;
@@ -77,6 +79,7 @@ public class TextField extends Widget {
 	OnscreenKeyboard keyboard = new DefaultOnscreenKeyboard();
 	boolean focusTraversal = true;
 	boolean disabled;
+	boolean onlyFontChars = true;
 
 	private boolean passwordMode;
 	private StringBuilder passwordBuffer;
@@ -175,7 +178,11 @@ public class TextField extends Widget {
 				Stage stage = getStage();
 				if (stage != null && stage.getKeyboardFocus() == TextField.this) {
 					boolean repeat = false;
-					boolean ctrl = Gdx.input.isKeyPressed(Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Keys.CONTROL_RIGHT);
+					boolean ctrl;
+					if (isMac)
+						ctrl = Gdx.input.isKeyPressed(Keys.SYM);
+					else
+						ctrl = Gdx.input.isKeyPressed(Keys.CONTROL_LEFT) || Gdx.input.isKeyPressed(Keys.CONTROL_RIGHT);
 					if (ctrl) {
 						// paste
 						if (keycode == Keys.V) {
@@ -310,17 +317,18 @@ public class TextField extends Widget {
 
 				Stage stage = getStage();
 				if (stage != null && stage.getKeyboardFocus() == TextField.this) {
-					if (character == BACKSPACE && (cursor > 0 || hasSelection)) {
-						if (!hasSelection) {
-							text = text.substring(0, cursor - 1) + text.substring(cursor);
-							updateDisplayText();
-							cursor--;
-							renderOffset = 0;
-						} else {
-							delete();
+					if (character == BACKSPACE) {
+						if (cursor > 0 || hasSelection) {
+							if (!hasSelection) {
+								text = text.substring(0, cursor - 1) + text.substring(cursor);
+								updateDisplayText();
+								cursor--;
+								renderOffset = 0;
+							} else {
+								delete();
+							}
 						}
-					}
-					if (character == DELETE) {
+					} else if (character == DELETE) {
 						if (cursor < text.length() || hasSelection) {
 							if (!hasSelection) {
 								text = text.substring(0, cursor) + text.substring(cursor + 1);
@@ -329,17 +337,14 @@ public class TextField extends Widget {
 								delete();
 							}
 						}
-						return true;
-					}
-					if (character != ENTER_DESKTOP && character != ENTER_ANDROID) {
-						if (filter != null && !filter.acceptChar(TextField.this, character)) return true;
-					}
-					if ((character == TAB || character == ENTER_ANDROID) && focusTraversal)
+					} else if ((character == TAB || character == ENTER_ANDROID) && focusTraversal) {
 						next(Gdx.input.isKeyPressed(Keys.SHIFT_LEFT) || Gdx.input.isKeyPressed(Keys.SHIFT_RIGHT));
-					if (font.containsCharacter(character)) {
-						if (maxLength > 0 && text.length() + 1 > maxLength) {
-							return true;
+					} else if (font.containsCharacter(character)) {
+						// Character may be added to the text.
+						if (character != ENTER_DESKTOP && character != ENTER_ANDROID) {
+							if (filter != null && !filter.acceptChar(TextField.this, character)) return true;
 						}
+						if (maxLength > 0 && text.length() + 1 > maxLength) return true;
 						if (!hasSelection) {
 							text = text.substring(0, cursor) + character + text.substring(cursor, text.length());
 							updateDisplayText();
@@ -373,6 +378,13 @@ public class TextField extends Widget {
 		return this.maxLength;
 	}
 
+	/** When false, text set by {@link #setText(String)} may contain characters not in the font, a space will be displayed instead.
+	 * When true (the default), characters not in the font are stripped by setText. Characters not in the font are always stripped
+	 * when typed or pasted. */
+	public void setOnlyFontChars (boolean onlyFontChars) {
+		this.onlyFontChars = onlyFontChars;
+	}
+
 	public void setStyle (TextFieldStyle style) {
 		if (style == null) throw new IllegalArgumentException("style cannot be null.");
 		this.style = style;
@@ -382,7 +394,7 @@ public class TextField extends Widget {
 	/** Sets the password character for the text field. The character must be present in the {@link BitmapFont} */
 	public void setPasswordCharacter (char passwordCharacter) {
 		this.passwordCharacter = passwordCharacter;
-		if(passwordMode) updateDisplayText();
+		if (passwordMode) updateDisplayText();
 	}
 
 	/** Returns the text field's style. Modifying the returned style may not have an effect until {@link #setStyle(TextFieldStyle)}
@@ -447,16 +459,18 @@ public class TextField extends Widget {
 
 	@Override
 	public void draw (SpriteBatch batch, float parentAlpha) {
-		
+
 		Stage stage = getStage();
 		boolean focused = stage != null && stage.getKeyboardFocus() == this;
-		
+
 		final BitmapFont font = style.font;
-		final Color fontColor = (disabled && style.disabledFontColor != null) ? style.disabledFontColor : ((focused && style.focusedFontColor != null) ? style.focusedFontColor : style.fontColor);
+		final Color fontColor = (disabled && style.disabledFontColor != null) ? style.disabledFontColor
+			: ((focused && style.focusedFontColor != null) ? style.focusedFontColor : style.fontColor);
 		final Drawable selection = style.selection;
 		final Drawable cursorPatch = style.cursor;
-		final Drawable background = (disabled && style.disabledBackground != null) ? style.disabledBackground : ((focused && style.focusedBackground != null) ? style.focusedBackground : style.background);
-		
+		final Drawable background = (disabled && style.disabledBackground != null) ? style.disabledBackground
+			: ((focused && style.focusedBackground != null) ? style.focusedBackground : style.background);
+
 		Color color = getColor();
 		float x = getX();
 		float y = getY();
@@ -471,7 +485,7 @@ public class TextField extends Widget {
 			bgLeftWidth = background.getLeftWidth();
 			float bottom = background.getBottomHeight();
 			textY = (int)(textY + (height - background.getTopHeight() - bottom) / 2 + bottom);
-		} else 
+		} else
 			textY = (int)(textY + height / 2);
 
 		calculateOffsets();
@@ -507,6 +521,13 @@ public class TextField extends Widget {
 	}
 
 	void updateDisplayText () {
+		StringBuilder buffer = new StringBuilder();
+		for (int i = 0; i < text.length(); i++) {
+			char c = text.charAt(i);
+			buffer.append(style.font.containsCharacter(c) ? c : ' ');
+		}
+		String text = buffer.toString();
+
 		if (passwordMode && style.font.containsCharacter(passwordCharacter)) {
 			if (passwordBuffer == null) passwordBuffer = new StringBuilder(text.length());
 			if (passwordBuffer.length() > text.length()) //
@@ -552,15 +573,15 @@ public class TextField extends Widget {
 	void paste () {
 		String content = clipboard.getContents();
 		if (content != null) {
-			StringBuilder builder = new StringBuilder();
+			StringBuilder buffer = new StringBuilder();
 			for (int i = 0; i < content.length(); i++) {
-				if (maxLength > 0 && text.length() + builder.length() + 1 > maxLength) {
-					break;
-				}
+				if (maxLength > 0 && text.length() + buffer.length() + 1 > maxLength) break;
 				char c = content.charAt(i);
-				if (style.font.containsCharacter(c) && (filter == null || filter.acceptChar(this, c))) builder.append(c);
+				if (!style.font.containsCharacter(c)) continue;
+				if (filter != null && !filter.acceptChar(this, c)) continue;
+				buffer.append(c);
 			}
-			content = builder.toString();
+			content = buffer.toString();
 
 			if (!hasSelection) {
 				text = text.substring(0, cursor) + content + text.substring(cursor, text.length());
@@ -617,6 +638,8 @@ public class TextField extends Widget {
 			Actor actor = actors.get(i);
 			if (actor == this) continue;
 			if (actor instanceof TextField) {
+				TextField textField = (TextField)actor;
+				if (textField.isDisabled() || !textField.focusTraversal) continue;
 				Vector2 actorCoords = actor.getParent().localToStageCoordinates(tmp3.set(actor.getX(), actor.getY()));
 				if ((actorCoords.y < currentCoords.y || (actorCoords.y == currentCoords.y && actorCoords.x > currentCoords.x)) ^ up) {
 					if (best == null
@@ -625,8 +648,8 @@ public class TextField extends Widget {
 						bestCoords.set(actorCoords);
 					}
 				}
-			}
-			if (actor instanceof Group) best = findNextTextField(((Group)actor).getChildren(), best, bestCoords, currentCoords, up);
+			} else if (actor instanceof Group)
+				best = findNextTextField(((Group)actor).getChildren(), best, bestCoords, currentCoords, up);
 		}
 		return best;
 	}
@@ -662,13 +685,13 @@ public class TextField extends Widget {
 
 		BitmapFont font = style.font;
 
-		StringBuffer buffer = new StringBuffer();
+		StringBuilder buffer = new StringBuilder();
 		for (int i = 0; i < text.length(); i++) {
-			if (maxLength > 0 && buffer.length() + 1 > maxLength) {
-				break;
-			}
+			if (maxLength > 0 && buffer.length() + 1 > maxLength) break;
 			char c = text.charAt(i);
-			if (font.containsCharacter(c) && (filter == null || filter.acceptChar(this, c))) buffer.append(c);
+			if (onlyFontChars && !style.font.containsCharacter(c)) continue;
+			if (filter != null && !filter.acceptChar(this, c)) continue;
+			buffer.append(c);
 		}
 
 		this.text = buffer.toString();

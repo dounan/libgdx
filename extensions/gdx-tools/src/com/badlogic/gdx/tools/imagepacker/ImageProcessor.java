@@ -16,6 +16,7 @@
 
 package com.badlogic.gdx.tools.imagepacker;
 
+import com.badlogic.gdx.tools.imagepacker.TexturePacker2.Alias;
 import com.badlogic.gdx.tools.imagepacker.TexturePacker2.Rect;
 import com.badlogic.gdx.tools.imagepacker.TexturePacker2.Settings;
 import com.badlogic.gdx.utils.Array;
@@ -43,11 +44,18 @@ public class ImageProcessor {
 	private final HashMap<String, Rect> crcs = new HashMap();
 	private final Array<Rect> rects = new Array();
 
+	/** @param rootDir Can be null. */
 	public ImageProcessor (File rootDir, Settings settings) {
 		this.settings = settings;
 
-		rootPath = rootDir.getAbsolutePath().replace('\\', '/');
-		if (!rootPath.endsWith("/")) rootPath += "/";
+		if (rootDir != null) {
+			rootPath = rootDir.getAbsolutePath().replace('\\', '/');
+			if (!rootPath.endsWith("/")) rootPath += "/";
+		}
+	}
+
+	public ImageProcessor (Settings settings) {
+		this(null, settings);
 	}
 
 	public void addImage (File file) {
@@ -67,6 +75,16 @@ public class ImageProcessor {
 		// Strip extension.
 		int dotIndex = name.lastIndexOf('.');
 		if (dotIndex != -1) name = name.substring(0, dotIndex);
+
+		addImage(image, name);
+	}
+
+	public void addImage (BufferedImage image, String name) {
+		if (image.getType() != BufferedImage.TYPE_4BYTE_ABGR) {
+			BufferedImage newImage = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_4BYTE_ABGR);
+			newImage.getGraphics().drawImage(image, 0, 0, null);
+			image = newImage;
+		}
 
 		Rect rect = null;
 
@@ -115,7 +133,7 @@ public class ImageProcessor {
 			Rect existing = crcs.get(crc);
 			if (existing != null) {
 				System.out.println(rect.name + " (alias of " + existing.name + ")");
-				existing.aliases.add(rect.name);
+				existing.aliases.add(new Alias(rect.name, rect.index));
 				return;
 			}
 			crcs.put(crc, rect);
@@ -347,6 +365,14 @@ public class ImageProcessor {
 					digest.update((byte)rgba);
 				}
 			}
+			digest.update((byte)(width >> 24));
+			digest.update((byte)(width >> 16));
+			digest.update((byte)(width >> 8));
+			digest.update((byte)width);
+			digest.update((byte)(height >> 24));
+			digest.update((byte)(height >> 16));
+			digest.update((byte)(height >> 8));
+			digest.update((byte)height);
 			return new BigInteger(1, digest.digest()).toString(16);
 		} catch (NoSuchAlgorithmException ex) {
 			throw new RuntimeException(ex);

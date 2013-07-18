@@ -16,7 +16,7 @@
 package com.badlogic.gdx.tests.bullet;
 
 import com.badlogic.gdx.graphics.Mesh;
-import com.badlogic.gdx.graphics.g3d.model.Model;
+import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.BoundingBox;
@@ -65,7 +65,7 @@ public class BulletConstructor extends BaseWorld.Constructor<BulletEntity> {
 	 */
 	public BulletConstructor (final Model model, final float mass) {
 		final BoundingBox boundingBox = new BoundingBox(); 
-		model.getBoundingBox(boundingBox);
+		model.calculateBoundingBox(boundingBox);
 		final Vector3 dimensions = boundingBox.getDimensions();
 		create(model, mass, dimensions.x, dimensions.y, dimensions.z);
 	}

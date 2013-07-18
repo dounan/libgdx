@@ -12,30 +12,30 @@
 	<!-- the compilerPrefix for the C & C++ compilers -->
 	<property name="compilerPrefix" value=""/>	
 	<property name="iphoneos-platform" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin"/>
-	<property name="iphoneos-sdk" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.0.sdk/"/>
+	<property name="iphoneos-sdk" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.1.sdk/"/>
 	<property name="iphonesimulator-platform" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/bin"/>
-	<property name="iphonesimulator-sdk" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator6.0.sdk/"/>
+	<property name="iphonesimulator-sdk" value="/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator6.1.sdk/"/>
 	
 	<!-- define gcc compiler, options and files to compile -->
 	<property name="gcc" value="${compilerPrefix}gcc"/>	
-	<property name="gcc-opts" value="-c -Wall -O2"/>
+	<property name="gcc-opts" value="-c -Wall -O2 -miphoneos-version-min=5.1"/>
 	<fileset id="gcc-files" dir="./">
 		<exclude name="target/"/>		
 				<include name="memcpy_wrap.c"/>
 		<include name="**/*.c"/>
 
-				<exclude name="src/BulletMultiThreaded/GpuSoftBodySolvers/**"/>
+				<exclude name="src/bullet/BulletMultiThreaded/GpuSoftBodySolvers/**"/>
 
 	</fileset>
 	
 	<!-- define g++ compiler, options and files to compile -->
 	<property name="g++" value="${compilerPrefix}g++"/>
-	<property name="g++-opts" value="-c -Wall -O2 -fno-strict-aliasing -fno-rtti -DBT_NO_PROFILE"/>
+	<property name="g++-opts" value="-c -Wall -O2 -miphoneos-version-min=5.1 -fno-strict-aliasing -fno-rtti -DBT_NO_PROFILE"/>
 	<fileset id="g++-files" dir="./">
 		<exclude name="target/"/>
 				<include name="**/*.cpp"/>
 
-				<exclude name="src/BulletMultiThreaded/GpuSoftBodySolvers/**"/>
+				<exclude name="src/bullet/BulletMultiThreaded/GpuSoftBodySolvers/**"/>
 
 	</fileset>
 
@@ -82,7 +82,9 @@
 			<arg value="-Ijni-headers"/>
 			<arg value="-Ijni-headers/${jniPlatform}"/>
 			<arg value="-I."/>
-						<arg value="-Isrc/"/>
+						<arg value="-Isrc/bullet/"/>
+			<arg value="-Isrc/custom/"/>
+			<arg value="-Isrc/extras/Serialize/"/>
 
 			<srcfile/>
 			<arg value="-o"/>
@@ -98,7 +100,9 @@
 			<arg value="-Ijni-headers"/>
 			<arg value="-Ijni-headers/${jniPlatform}"/>
 			<arg value="-I."/>
-						<arg value="-Isrc/"/>
+						<arg value="-Isrc/bullet/"/>
+			<arg value="-Isrc/custom/"/>
+			<arg value="-Isrc/extras/Serialize/"/>
 
 			<srcfile/>
 			<arg value="-o"/>
@@ -135,7 +139,9 @@
 			<arg value="-Ijni-headers"/>
 			<arg value="-Ijni-headers/${jniPlatform}"/>
 			<arg value="-I."/>
-						<arg value="-Isrc/"/>
+						<arg value="-Isrc/bullet/"/>
+			<arg value="-Isrc/custom/"/>
+			<arg value="-Isrc/extras/Serialize/"/>
 
 			<srcfile/>
 			<arg value="-o"/>
@@ -151,7 +157,9 @@
 			<arg value="-Ijni-headers"/>
 			<arg value="-Ijni-headers/${jniPlatform}"/>
 			<arg value="-I."/>
-						<arg value="-Isrc/"/>
+						<arg value="-Isrc/bullet/"/>
+			<arg value="-Isrc/custom/"/>
+			<arg value="-Isrc/extras/Serialize/"/>
 
 			<srcfile/>
 			<arg value="-o"/>

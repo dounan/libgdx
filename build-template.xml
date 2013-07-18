@@ -19,6 +19,7 @@ zipfileset id="jarfiles" -> the jar files to be merged with the project's classe
 	<property name="target" value="target" />
 	<property name="libs" value="libs" />
 	<zipfileset id="jarfiles" dir="." excludes="**"/>
+	<fileset id="resourcefiles" dir="." excludes="**"/>
 	
 	<!-- clean output directories, create libs directory -->	
 	<target name="clean">		
@@ -30,9 +31,6 @@ zipfileset id="jarfiles" -> the jar files to be merged with the project's classe
 	<target name="init" depends="clean">		
 		<mkdir dir="${target}" />
 		<mkdir dir="${target}/java" />
-		<!-- need to copy the internal font to target if compiling the gdx core :/ -->
-		<copy failonerror="false" tofile="${target}/java/com/badlogic/gdx/utils/arial-15.png" file="src/com/badlogic/gdx/utils/arial-15.png" />
-		<copy failonerror="false" tofile="${target}/java/com/badlogic/gdx/utils/arial-15.fnt" file="src/com/badlogic/gdx/utils/arial-15.fnt" />
 		<!-- need to copy jni headers for gdx-jnigen -->
 		<copy failonerror="false" todir="${target}/java">
 			<fileset dir="src">
@@ -78,6 +76,7 @@ zipfileset id="jarfiles" -> the jar files to be merged with the project's classe
 		<mkdir dir="${libs}/android32" />
 		<mkdir dir="${libs}/armeabi" />
 		<mkdir dir="${libs}/armeabi-v7a" />
+        <mkdir dir="${libs}/x86" />
 		<mkdir dir="${libs}/linux32" />
 		<mkdir dir="${libs}/linux64" />
 		<mkdir dir="${libs}/macosx32" />
@@ -95,6 +94,11 @@ zipfileset id="jarfiles" -> the jar files to be merged with the project's classe
 		</copy>
 		<copy failonerror="false" todir="${distDir}/armeabi-v7a">
 			<fileset dir="${libs}/armeabi-v7a">
+				<include name="**/*.so"/>
+			</fileset>
+		</copy>
+        <copy failonerror="false" todir="${distDir}/x86">
+			<fileset dir="${libs}/x86">
 				<include name="**/*.so"/>
 			</fileset>
 		</copy>
@@ -127,10 +131,16 @@ zipfileset id="jarfiles" -> the jar files to be merged with the project's classe
 				<include name="**/*.so"/>
 			</fileset>
 		</copy>
+        <copy failonerror="false" todir="${distDir}/x86">
+			<fileset dir="${libs}/x86">
+				<include name="**/*.so"/>
+			</fileset>
+		</copy>
 		
 		<!-- class jar -->
 		<jar destfile="${distDir}/${jar}.jar">
 			<fileset dir="${target}/java"/>
+			<fileset refid="resourcefiles"/>
 			<!-- merge dependencies found in libs/ folder, exclude native, debug and android/gwt jars -->
 			<zipgroupfileset file="${libs}/*.jar">
 				<exclude name="*-natives.jar"/>
