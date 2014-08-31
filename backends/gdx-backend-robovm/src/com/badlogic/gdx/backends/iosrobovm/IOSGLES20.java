@@ -1,19 +1,35 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
+
 package com.badlogic.gdx.backends.iosrobovm;
 
 import java.nio.Buffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GLCommon;
 
-
-public class IOSGLES20 implements GL20, GLCommon
+public class IOSGLES20 implements GL20
 {	
 	public IOSGLES20() {
 		init();
 	}
+	
+	/** last viewport set, needed because GLKView resets the viewport on each call to render... amazing **/
+	public static int x, y, width, height;
 	
 	private static native void init( );	
 	
@@ -303,5 +319,13 @@ public class IOSGLES20 implements GL20, GLCommon
 	
 	public native void glVertexAttribPointer ( int indx, int size, int type, boolean normalized, int stride, int ptr );
 
-	public native void glViewport ( int x, int y, int width, int height );
+	public void glViewport(int x, int y, int width, int height) {
+		IOSGLES20.x = x;
+		IOSGLES20.y = y;
+		IOSGLES20.width = width;
+		IOSGLES20.height = height;
+		glViewportJni(x, y, width, height);
+	}
+	
+	public native void glViewportJni ( int x, int y, int width, int height );
 }

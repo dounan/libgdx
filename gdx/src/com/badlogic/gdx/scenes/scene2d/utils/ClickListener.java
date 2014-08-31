@@ -30,15 +30,21 @@ import com.badlogic.gdx.utils.TimeUtils;
  * touch downs are ignored.
  * @author Nathan Sweet */
 public class ClickListener extends InputListener {
+	/** Time in seconds {@link #isVisualPressed()} reports true after a press resulting in a click is released. */
+	static public float visualPressedDuration = 0.1f;
+
 	private float tapSquareSize = 14, touchDownX = -1, touchDownY = -1;
 	private int pressedPointer = -1;
 	private int pressedButton = -1;
 	private int button;
 	private boolean pressed, over, cancelled;
+	private float visualPressedTime;
 	private long tapCountInterval = (long)(0.4f * 1000000000l);
 	private int tapCount;
 	private long lastTapTime;
 
+	/** Create a listener where {@link #clicked(InputEvent, float, float)} is only called for left clicks.
+	 * @see #ClickListener(int) */
 	public ClickListener () {
 	}
 
@@ -55,6 +61,7 @@ public class ClickListener extends InputListener {
 		pressedButton = button;
 		touchDownX = x;
 		touchDownY = y;
+		visualPressedTime = TimeUtils.nanoTime() + visualPressedDuration * 1000000000;
 		return true;
 	}
 
@@ -101,20 +108,10 @@ public class ClickListener extends InputListener {
 	public void cancel () {
 		if (pressedPointer == -1) return;
 		cancelled = true;
-		over = false;
 		pressed = false;
 	}
 
 	public void clicked (InputEvent event, float x, float y) {
-	}
-
-	public void dragStart (InputEvent event, float x, float y, int pointer) {
-	}
-
-	public void drag (InputEvent event, float x, float y, int pointer) {
-	}
-
-	public void dragStop (InputEvent event, float x, float y, int pointer) {
 	}
 
 	/** Returns true if the specified position is over the specified actor or within the tap square. */
@@ -129,6 +126,11 @@ public class ClickListener extends InputListener {
 		return Math.abs(x - touchDownX) < tapSquareSize && Math.abs(y - touchDownY) < tapSquareSize;
 	}
 
+	/** Returns true if a touch is within the tap square. */
+	public boolean inTapSquare () {
+		return touchDownX != -1;
+	}
+
 	/** The tap square will not longer be used for the current touch. */
 	public void invalidateTapSquare () {
 		touchDownX = -1;
@@ -138,6 +140,16 @@ public class ClickListener extends InputListener {
 	/** Returns true if a touch is over the actor or within the tap square. */
 	public boolean isPressed () {
 		return pressed;
+	}
+
+	/** Returns true if a touch is over the actor or within the tap square or has been very recently. This allows the UI to show a
+	 * press and release that was so fast it occurred within a single frame. */
+	public boolean isVisualPressed () {
+		if (pressed) return true;
+		if (visualPressedTime <= 0) return false;
+		if (visualPressedTime > TimeUtils.nanoTime() && Gdx.graphics.isContinuousRendering()) return true;
+		visualPressedTime = 0;
+		return false;
 	}
 
 	/** Returns true if the mouse or touch is over the actor or pressed and within the tap square. */

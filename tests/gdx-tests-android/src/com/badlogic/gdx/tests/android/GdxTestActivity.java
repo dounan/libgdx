@@ -33,7 +33,7 @@ public class GdxTestActivity extends AndroidApplication {
 
 		GdxTest test = GdxTests.newTest(testName);
 		AndroidApplicationConfiguration config = new AndroidApplicationConfiguration();
-		config.useGL20 = test.needsGL20();
+		config.useImmersiveMode = true;
 		initialize(test, config);
 	}
 }

@@ -74,9 +74,10 @@ public class FileProcessor {
 		return this;
 	}
 
+	/** Adds a case insensitive suffix for matching input files. */
 	public FileProcessor addInputSuffix (String... suffixes) {
 		for (String suffix : suffixes)
-			addInputRegex(".*" + Pattern.quote(suffix));
+			addInputRegex("(?i).*" + Pattern.quote(suffix));
 		return this;
 	}
 
@@ -101,6 +102,12 @@ public class FileProcessor {
 	public FileProcessor setRecursive (boolean recursive) {
 		this.recursive = recursive;
 		return this;
+	}
+
+	/** @param outputRoot May be null.
+	 * @see #process(File, File) */
+	public ArrayList<Entry> process (String inputFile, String outputRoot) throws Exception {
+		return process(new File(inputFile), outputRoot == null ? null : new File(outputRoot));
 	}
 
 	/** Processes the specified input file or directory.

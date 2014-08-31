@@ -63,9 +63,9 @@ public class FrameBufferTest extends GdxTest {
 		meshShader.end();
 		frameBuffer.end();
 
-		Gdx.graphics.getGL20().glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		Gdx.graphics.getGL20().glClearColor(0.2f, 0.2f, 0.2f, 1);
-		Gdx.graphics.getGL20().glClear(GL20.GL_COLOR_BUFFER_BIT);
+		Gdx.gl20.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		Gdx.gl20.glClearColor(0.2f, 0.2f, 0.2f, 1);
+		Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
 		spriteBatch.begin();
 		spriteBatch.draw(frameBuffer.getColorBufferTexture(), 0, 0, 256, 256, 0, 0, frameBuffer.getColorBufferTexture().getWidth(),
@@ -115,11 +115,6 @@ public class FrameBufferTest extends GdxTest {
 		frameBuffer.dispose();
 		spriteBatch.dispose();
 		meshShader.dispose();
-	}
-
-	@Override
-	public boolean needsGL20 () {
-		return true;
 	}
 
 }

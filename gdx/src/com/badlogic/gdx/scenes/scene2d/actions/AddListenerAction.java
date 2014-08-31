@@ -30,9 +30,9 @@ public class AddListenerAction extends Action {
 	public boolean act (float delta) {
 		Actor actor = (targetActor != null ? targetActor : this.actor);
 		if (capture)
-			targetActor.addCaptureListener(listener);
+			actor.addCaptureListener(listener);
 		else
-			targetActor.addListener(listener);
+			actor.addListener(listener);
 		return true;
 	}
 
@@ -40,7 +40,7 @@ public class AddListenerAction extends Action {
 		return targetActor;
 	}
 
-	/** Sets the actor to add a listneer to. If null (the default), the {@link #getActor() actor} will be used. */
+	/** Sets the actor to add a listener to. If null (the default), the {@link #getActor() actor} will be used. */
 	public void setTargetActor (Actor actor) {
 		this.targetActor = actor;
 	}

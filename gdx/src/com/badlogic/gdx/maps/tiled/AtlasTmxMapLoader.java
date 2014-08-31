@@ -1,12 +1,23 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
 
 package com.badlogic.gdx.maps.tiled;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.StringTokenizer;
-import java.util.zip.DataFormatException;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.Inflater;
 
 import com.badlogic.gdx.assets.AssetDescriptor;
 import com.badlogic.gdx.assets.AssetLoaderParameters;
@@ -31,7 +42,6 @@ import com.badlogic.gdx.maps.tiled.tiles.StaticTiledMapTile;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Polyline;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.Base64Coder;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.XmlReader;
@@ -48,17 +58,14 @@ import com.badlogic.gdx.utils.XmlReader.Element;
 public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTmxMapLoader.AtlasTiledMapLoaderParameters> {
 
 	public static class AtlasTiledMapLoaderParameters extends AssetLoaderParameters<TiledMap> {
-		/** Whether to load the map for a y-up coordinate system */
-		public boolean yUp = true;
-
 		/** force texture filters? **/
 		public boolean forceTextureFilters = false;
-
 		/** The TextureFilter to use for minification, if forceTextureFilter is enabled **/
 		public TextureFilter textureMinFilter = TextureFilter.Nearest;
-
 		/** The TextureFilter to use for magnification, if forceTextureFilter is enabled **/
 		public TextureFilter textureMagFilter = TextureFilter.Nearest;
+		/** Whether to convert the objects' pixel position and size to the equivalent in tile space. **/
+		public boolean convertObjectToTileSpace = false;
 	}
 
 	protected static final int FLAG_FLIP_HORIZONTALLY = 0x80000000;
@@ -68,8 +75,10 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 
 	protected XmlReader xml = new XmlReader();
 	protected Element root;
-	protected boolean yUp;
+	protected boolean convertObjectToTileSpace;
 
+	protected int mapTileWidth;
+	protected int mapTileHeight;
 	protected int mapWidthInPixels;
 	protected int mapHeightInPixels;
 
@@ -122,9 +131,8 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 	}
 
 	@Override
-	public Array<AssetDescriptor> getDependencies (String fileName, AtlasTiledMapLoaderParameters parameter) {
+	public Array<AssetDescriptor> getDependencies (String fileName, FileHandle tmxFile, AtlasTiledMapLoaderParameters parameter) {
 		Array<AssetDescriptor> dependencies = new Array<AssetDescriptor>();
-		FileHandle tmxFile = resolve(fileName);
 		try {
 			root = xml.parse(tmxFile);
 
@@ -135,8 +143,7 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 					String value = property.getAttribute("value");
 					if (name.startsWith("atlas")) {
 						FileHandle atlasHandle = getRelativeFileHandle(tmxFile, value);
-						atlasHandle = resolve(atlasHandle.path());
-						dependencies.add(new AssetDescriptor(atlasHandle.path(), TextureAtlas.class));
+						dependencies.add(new AssetDescriptor(atlasHandle, TextureAtlas.class));
 					}
 				}
 			}
@@ -149,9 +156,9 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 	public TiledMap load (String fileName, AtlasTiledMapLoaderParameters parameter) {
 		try {
 			if (parameter != null) {
-				yUp = parameter.yUp;
+				convertObjectToTileSpace = parameter.convertObjectToTileSpace;
 			} else {
-				yUp = true;
+				convertObjectToTileSpace = false;
 			}
 
 			FileHandle tmxFile = resolve(fileName);
@@ -176,10 +183,9 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 		}
 	}
 
+	/** May return null. */
 	protected FileHandle loadAtlas (Element root, FileHandle tmxFile) throws IOException {
-
 		Element e = root.getChildByName("properties");
-		Array<FileHandle> atlases = new Array<FileHandle>();
 
 		if (e != null) {
 			for (Element property : e.getChildrenByName("property")) {
@@ -198,6 +204,9 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 					return getRelativeFileHandle(tmxFile, value);
 				}
 			}
+		} else {
+			FileHandle atlasFile = tmxFile.sibling(tmxFile.nameWithoutExtension() + ".atlas");
+			return atlasFile.exists() ? atlasFile : null;
 		}
 
 		return null;
@@ -210,14 +219,13 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 	}
 
 	@Override
-	public void loadAsync (AssetManager manager, String fileName, AtlasTiledMapLoaderParameters parameter) {
+	public void loadAsync (AssetManager manager, String fileName, FileHandle tmxFile, AtlasTiledMapLoaderParameters parameter) {
 		map = null;
 
-		FileHandle tmxFile = resolve(fileName);
 		if (parameter != null) {
-			yUp = parameter.yUp;
+			convertObjectToTileSpace = parameter.convertObjectToTileSpace;
 		} else {
-			yUp = true;
+			convertObjectToTileSpace = false;
 		}
 
 		try {
@@ -228,7 +236,7 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 	}
 
 	@Override
-	public TiledMap loadSync (AssetManager manager, String fileName, AtlasTiledMapLoaderParameters parameter) {
+	public TiledMap loadSync (AssetManager manager, String fileName, FileHandle file, AtlasTiledMapLoaderParameters parameter) {
 		if (parameter != null) {
 			setTextureFilters(parameter.textureMinFilter, parameter.textureMagFilter);
 		}
@@ -257,6 +265,9 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 		if (mapBackgroundColor != null) {
 			mapProperties.put("backgroundcolor", mapBackgroundColor);
 		}
+
+		mapTileWidth = tileWidth;
+		mapTileHeight = tileHeight;
 		mapWidthInPixels = mapWidth * tileWidth;
 		mapHeightInPixels = mapHeight * tileHeight;
 
@@ -287,6 +298,9 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 			int margin = element.getIntAttribute("margin", 0);
 			String source = element.getAttribute("source", null);
 
+			int offsetX = 0;
+			int offsetY = 0;
+
 			String imageSource = "";
 			int imageWidth = 0, imageHeight = 0;
 
@@ -300,31 +314,50 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 					tileheight = element.getIntAttribute("tileheight", 0);
 					spacing = element.getIntAttribute("spacing", 0);
 					margin = element.getIntAttribute("margin", 0);
-					imageSource = element.getChildByName("image").getAttribute("source");
-					imageWidth = element.getChildByName("image").getIntAttribute("width", 0);
-					imageHeight = element.getChildByName("image").getIntAttribute("height", 0);
+					Element offset = element.getChildByName("tileoffset");
+					if (offset != null) {
+						offsetX = offset.getIntAttribute("x", 0);
+						offsetY = offset.getIntAttribute("y", 0);
+					}
+					Element imageElement = element.getChildByName("image");
+					imageSource = imageElement.getAttribute("source");
+					imageWidth = imageElement.getIntAttribute("width", 0);
+					imageHeight = imageElement.getIntAttribute("height", 0);
 				} catch (IOException e) {
 					throw new GdxRuntimeException("Error parsing external tileset.");
 				}
 			} else {
-				imageSource = element.getChildByName("image").getAttribute("source");
-				imageWidth = element.getChildByName("image").getIntAttribute("width", 0);
-				imageHeight = element.getChildByName("image").getIntAttribute("height", 0);
+				Element offset = element.getChildByName("tileoffset");
+				if (offset != null) {
+					offsetX = offset.getIntAttribute("x", 0);
+					offsetY = offset.getIntAttribute("y", 0);
+				}
+				Element imageElement = element.getChildByName("image");
+				if (imageElement != null) {
+					imageSource = imageElement.getAttribute("source");
+					imageWidth = imageElement.getIntAttribute("width", 0);
+					imageHeight = imageElement.getIntAttribute("height", 0);
+				}
+			}
+
+			String atlasFilePath = map.getProperties().get("atlas", String.class);
+			if (atlasFilePath == null) {
+				FileHandle atlasFile = tmxFile.sibling(tmxFile.nameWithoutExtension() + ".atlas");
+				if (atlasFile.exists()) atlasFilePath = atlasFile.name();
+			}
+			if (atlasFilePath == null) {
+				throw new GdxRuntimeException("The map is missing the 'atlas' property");
 			}
 
 			// get the TextureAtlas for this tileset
-			TextureAtlas atlas = null;
-			String regionsName = "";
-			if (map.getProperties().containsKey("atlas")) {
-				FileHandle atlasHandle = getRelativeFileHandle(tmxFile, map.getProperties().get("atlas", String.class));
-				atlasHandle = resolve(atlasHandle.path());
-				atlas = resolver.getAtlas(atlasHandle.path());
-				regionsName = atlasHandle.nameWithoutExtension();
+			FileHandle atlasHandle = getRelativeFileHandle(tmxFile, atlasFilePath);
+			atlasHandle = resolve(atlasHandle.path());
+			TextureAtlas atlas = resolver.getAtlas(atlasHandle.path());
+			String regionsName = atlasHandle.nameWithoutExtension();
 
-				if (parameter != null && parameter.forceTextureFilters) {
-					for (Texture texture : atlas.getTextures()) {
-						trackedTextures.add(texture);
-					}
+			if (parameter != null && parameter.forceTextureFilters) {
+				for (Texture texture : atlas.getTextures()) {
+					trackedTextures.add(texture);
 				}
 			}
 
@@ -340,27 +373,36 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 			props.put("margin", margin);
 			props.put("spacing", spacing);
 
-			Array<AtlasRegion> regions = atlas.findRegions(regionsName);
-			for (AtlasRegion region : regions) {
+			for (AtlasRegion region : atlas.findRegions(regionsName)) {
 				// handle unused tile ids
 				if (region != null) {
 					StaticTiledMapTile tile = new StaticTiledMapTile(region);
-
-					if (!yUp) {
-						region.flip(false, true);
-					}
-
 					int tileid = firstgid + region.index;
 					tile.setId(tileid);
+					tile.setOffsetX(offsetX);
+					tile.setOffsetY(-offsetY);
 					tileset.putTile(tileid, tile);
 				}
 			}
 
-			Array<Element> tileElements = element.getChildrenByName("tile");
-
-			for (Element tileElement : tileElements) {
-				int localtid = tileElement.getIntAttribute("id", 0);
-				TiledMapTile tile = tileset.getTile(firstgid + localtid);
+			for (Element tileElement : element.getChildrenByName("tile")) {
+				int tileid = firstgid + tileElement.getIntAttribute("id", 0);
+				TiledMapTile tile = tileset.getTile(tileid);
+				if (tile == null) {
+					Element imageElement = tileElement.getChildByName("image");
+					if (imageElement != null) {
+						// Is a tilemap with individual images.
+						String regionName = imageElement.getAttribute("source");
+						regionName = regionName.substring(0, regionName.lastIndexOf('.'));
+						AtlasRegion region = atlas.findRegion(regionName);
+						if (region == null) throw new GdxRuntimeException("Tileset region not found: " + regionName);
+						tile = new StaticTiledMapTile(region);
+						tile.setId(tileid);
+						tile.setOffsetX(offsetX);
+						tile.setOffsetY(-offsetY);
+						tileset.putTile(tileid, tile);
+					}
+				}
 				if (tile != null) {
 					String terrain = tileElement.getAttribute("terrain", null);
 					if (terrain != null) {
@@ -399,135 +441,24 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 			layer.setOpacity(opacity);
 			layer.setName(name);
 
+			int[] ids = TmxMapHelper.getTileIds(element, width, height);
 			TiledMapTileSets tilesets = map.getTileSets();
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					int id = ids[y * width + x];
+					boolean flipHorizontally = ((id & FLAG_FLIP_HORIZONTALLY) != 0);
+					boolean flipVertically = ((id & FLAG_FLIP_VERTICALLY) != 0);
+					boolean flipDiagonally = ((id & FLAG_FLIP_DIAGONALLY) != 0);
 
-			Element data = element.getChildByName("data");
-			String encoding = data.getAttribute("encoding", null);
-			String compression = data.getAttribute("compression", null);
-			if (encoding == null) { // no 'encoding' attribute means that the encoding is XML
-				throw new GdxRuntimeException("Unsupported encoding (XML) for TMX Layer Data");
-			}
-			if (encoding.equals("csv")) {
-				String[] array = data.getText().split(",");
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						int id = (int)Long.parseLong(array[y * width + x].trim());
-
-						final boolean flipHorizontally = ((id & FLAG_FLIP_HORIZONTALLY) != 0);
-						final boolean flipVertically = ((id & FLAG_FLIP_VERTICALLY) != 0);
-						final boolean flipDiagonally = ((id & FLAG_FLIP_DIAGONALLY) != 0);
-
-						id = id & ~MASK_CLEAR;
-
-						tilesets.getTile(id);
-						TiledMapTile tile = tilesets.getTile(id);
-						if (tile != null) {
-							Cell cell = createTileLayerCell(flipHorizontally, flipVertically, flipDiagonally);
-							cell.setTile(tile);
-							layer.setCell(x, yUp ? height - 1 - y : y, cell);
-						}
+					TiledMapTile tile = tilesets.getTile(id & ~MASK_CLEAR);
+					if (tile != null) {
+						Cell cell = createTileLayerCell(flipHorizontally, flipVertically, flipDiagonally);
+						cell.setTile(tile);
+						layer.setCell(x, height - 1 - y, cell);
 					}
 				}
-			} else {
-				if (encoding.equals("base64")) {
-					byte[] bytes = Base64Coder.decode(data.getText());
-					if (compression == null) {
-						int read = 0;
-						for (int y = 0; y < height; y++) {
-							for (int x = 0; x < width; x++) {
-
-								int id = unsignedByteToInt(bytes[read++]) | unsignedByteToInt(bytes[read++]) << 8
-									| unsignedByteToInt(bytes[read++]) << 16 | unsignedByteToInt(bytes[read++]) << 24;
-
-								final boolean flipHorizontally = ((id & FLAG_FLIP_HORIZONTALLY) != 0);
-								final boolean flipVertically = ((id & FLAG_FLIP_VERTICALLY) != 0);
-								final boolean flipDiagonally = ((id & FLAG_FLIP_DIAGONALLY) != 0);
-
-								id = id & ~MASK_CLEAR;
-
-								tilesets.getTile(id);
-								TiledMapTile tile = tilesets.getTile(id);
-								if (tile != null) {
-									Cell cell = createTileLayerCell(flipHorizontally, flipVertically, flipDiagonally);
-									cell.setTile(tile);
-									layer.setCell(x, yUp ? height - 1 - y : y, cell);
-								}
-							}
-						}
-					} else if (compression.equals("gzip")) {
-						GZIPInputStream GZIS = null;
-						try {
-							GZIS = new GZIPInputStream(new ByteArrayInputStream(bytes), bytes.length);
-						} catch (IOException e) {
-							throw new GdxRuntimeException("Error Reading TMX Layer Data - IOException: " + e.getMessage());
-						}
-
-						byte[] temp = new byte[4];
-						for (int y = 0; y < height; y++) {
-							for (int x = 0; x < width; x++) {
-								try {
-									GZIS.read(temp, 0, 4);
-									int id = unsignedByteToInt(temp[0]) | unsignedByteToInt(temp[1]) << 8
-										| unsignedByteToInt(temp[2]) << 16 | unsignedByteToInt(temp[3]) << 24;
-
-									final boolean flipHorizontally = ((id & FLAG_FLIP_HORIZONTALLY) != 0);
-									final boolean flipVertically = ((id & FLAG_FLIP_VERTICALLY) != 0);
-									final boolean flipDiagonally = ((id & FLAG_FLIP_DIAGONALLY) != 0);
-
-									id = id & ~MASK_CLEAR;
-
-									tilesets.getTile(id);
-									TiledMapTile tile = tilesets.getTile(id);
-									if (tile != null) {
-										Cell cell = createTileLayerCell(flipHorizontally, flipVertically, flipDiagonally);
-										cell.setTile(tile);
-										layer.setCell(x, yUp ? height - 1 - y : y, cell);
-									}
-								} catch (IOException e) {
-									throw new GdxRuntimeException("Error Reading TMX Layer Data.", e);
-								}
-							}
-						}
-					} else if (compression.equals("zlib")) {
-						Inflater zlib = new Inflater();
-
-						byte[] temp = new byte[4];
-
-						zlib.setInput(bytes, 0, bytes.length);
-
-						for (int y = 0; y < height; y++) {
-							for (int x = 0; x < width; x++) {
-								try {
-									zlib.inflate(temp, 0, 4);
-									int id = unsignedByteToInt(temp[0]) | unsignedByteToInt(temp[1]) << 8
-										| unsignedByteToInt(temp[2]) << 16 | unsignedByteToInt(temp[3]) << 24;
-
-									final boolean flipHorizontally = ((id & FLAG_FLIP_HORIZONTALLY) != 0);
-									final boolean flipVertically = ((id & FLAG_FLIP_VERTICALLY) != 0);
-									final boolean flipDiagonally = ((id & FLAG_FLIP_DIAGONALLY) != 0);
-
-									id = id & ~MASK_CLEAR;
-
-									tilesets.getTile(id);
-									TiledMapTile tile = tilesets.getTile(id);
-									if (tile != null) {
-										Cell cell = createTileLayerCell(flipHorizontally, flipVertically, flipDiagonally);
-										cell.setTile(tile);
-										layer.setCell(x, yUp ? height - 1 - y : y, cell);
-									}
-
-								} catch (DataFormatException e) {
-									throw new GdxRuntimeException("Error Reading TMX Layer Data.", e);
-								}
-							}
-						}
-					}
-				} else {
-					// any other value of 'encoding' is one we're not aware of, probably a feature of a future version of Tiled
-					// or another editor
-					throw new GdxRuntimeException("Unrecognised encoding (" + encoding + ") for TMX Layer Data");
-				}
 			}
+
 			Element properties = element.getChildByName("properties");
 			if (properties != null) {
 				loadProperties(layer.getProperties(), properties);
@@ -558,11 +489,14 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 		if (element.getName().equals("object")) {
 			MapObject object = null;
 
-			int x = element.getIntAttribute("x", 0);
-			int y = (yUp ? mapHeightInPixels - element.getIntAttribute("y", 0) : element.getIntAttribute("y", 0));
+			float scaleX = convertObjectToTileSpace ? 1.0f / mapTileWidth : 1.0f;
+			float scaleY = convertObjectToTileSpace ? 1.0f / mapTileHeight : 1.0f;
 
-			int width = element.getIntAttribute("width", 0);
-			int height = element.getIntAttribute("height", 0);
+			float x = element.getFloatAttribute("x", 0) * scaleX;
+			float y = (mapHeightInPixels - element.getFloatAttribute("y", 0)) * scaleY;
+
+			float width = element.getFloatAttribute("width", 0) * scaleX;
+			float height = element.getFloatAttribute("height", 0) * scaleY;
 
 			if (element.getChildCount() > 0) {
 				Element child = null;
@@ -571,11 +505,8 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 					float[] vertices = new float[points.length * 2];
 					for (int i = 0; i < points.length; i++) {
 						String[] point = points[i].split(",");
-						vertices[i * 2] = Integer.parseInt(point[0]);
-						vertices[i * 2 + 1] = Integer.parseInt(point[1]);
-						if (yUp) {
-							vertices[i * 2 + 1] *= -1;
-						}
+						vertices[i * 2] = Float.parseFloat(point[0]) * scaleX;
+						vertices[i * 2 + 1] = -Float.parseFloat(point[1]) * scaleY;
 					}
 					Polygon polygon = new Polygon(vertices);
 					polygon.setPosition(x, y);
@@ -585,23 +516,24 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 					float[] vertices = new float[points.length * 2];
 					for (int i = 0; i < points.length; i++) {
 						String[] point = points[i].split(",");
-						vertices[i * 2] = Integer.parseInt(point[0]);
-						vertices[i * 2 + 1] = Integer.parseInt(point[1]);
-						if (yUp) {
-							vertices[i * 2 + 1] *= -1;
-						}
+						vertices[i * 2] = Float.parseFloat(point[0]) * scaleX;
+						vertices[i * 2 + 1] = -Float.parseFloat(point[1]) * scaleY;
 					}
 					Polyline polyline = new Polyline(vertices);
 					polyline.setPosition(x, y);
 					object = new PolylineMapObject(polyline);
 				} else if ((child = element.getChildByName("ellipse")) != null) {
-					object = new EllipseMapObject(x, yUp ? y - height : y, width, height);
+					object = new EllipseMapObject(x, y - height, width, height);
 				}
 			}
 			if (object == null) {
-				object = new RectangleMapObject(x, yUp ? y - height : y, width, height);
+				object = new RectangleMapObject(x, y - height, width, height);
 			}
 			object.setName(element.getAttribute("name", null));
+			String rotation = element.getAttribute("rotation", null);
+			if (rotation != null) {
+				object.getProperties().put("rotation", Float.parseFloat(rotation));
+			}
 			String type = element.getAttribute("type", null);
 			if (type != null) {
 				object.getProperties().put("type", type);
@@ -610,8 +542,8 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 			if (gid != -1) {
 				object.getProperties().put("gid", gid);
 			}
-			object.getProperties().put("x", x);
-			object.getProperties().put("y", yUp ? y - height : y);
+			object.getProperties().put("x", x * scaleX);
+			object.getProperties().put("y", (y - height) * scaleY);
 			object.setVisible(element.getIntAttribute("visible", 1) == 1);
 			Element properties = element.getChildByName("properties");
 			if (properties != null) {
@@ -639,14 +571,14 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 		if (flipDiagonally) {
 			if (flipHorizontally && flipVertically) {
 				cell.setFlipHorizontally(true);
-				cell.setRotation(yUp ? Cell.ROTATE_270 : Cell.ROTATE_90);
+				cell.setRotation(Cell.ROTATE_270);
 			} else if (flipHorizontally) {
-				cell.setRotation(yUp ? Cell.ROTATE_270 : Cell.ROTATE_90);
+				cell.setRotation(Cell.ROTATE_270);
 			} else if (flipVertically) {
-				cell.setRotation(yUp ? Cell.ROTATE_90 : Cell.ROTATE_270);
+				cell.setRotation(Cell.ROTATE_90);
 			} else {
 				cell.setFlipVertically(true);
-				cell.setRotation(yUp ? Cell.ROTATE_270 : Cell.ROTATE_90);
+				cell.setRotation(Cell.ROTATE_270);
 			}
 		} else {
 			cell.setFlipHorizontally(flipHorizontally);
@@ -654,7 +586,7 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 		}
 		return cell;
 	}
-	
+
 	public static FileHandle getRelativeFileHandle (FileHandle file, String path) {
 		StringTokenizer tokenizer = new StringTokenizer(path, "\\/");
 		FileHandle result = file.parent();
@@ -667,9 +599,5 @@ public class AtlasTmxMapLoader extends AsynchronousAssetLoader<TiledMap, AtlasTm
 			}
 		}
 		return result;
-	}
-
-	protected static int unsignedByteToInt (byte b) {
-		return (int)b & 0xFF;
 	}
 }

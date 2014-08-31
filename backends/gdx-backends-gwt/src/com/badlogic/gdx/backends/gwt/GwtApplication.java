@@ -37,13 +37,12 @@ import com.badlogic.gdx.utils.TimeUtils;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.core.client.JavaScriptObject;
+import com.google.gwt.dom.client.CanvasElement;
 import com.google.gwt.dom.client.Document;
 import com.google.gwt.dom.client.Element;
 import com.google.gwt.dom.client.Style;
 import com.google.gwt.dom.client.Style.Unit;
 import com.google.gwt.user.client.Timer;
-import com.google.gwt.user.client.ui.FlowPanel;
-import com.google.gwt.user.client.ui.HTMLPanel;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.HasVerticalAlignment;
 import com.google.gwt.user.client.ui.Image;
@@ -76,10 +75,18 @@ public abstract class GwtApplication implements EntryPoint, Application {
 	Preloader preloader;
 	private static AgentInfo agentInfo;
 	private ObjectMap<String, Preferences> prefs = new ObjectMap<String, Preferences>();
+	private Clipboard clipboard;
+	LoadingListener loadingListener;
 
 	/** @return the configuration for the {@link GwtApplication}. */
 	public abstract GwtApplicationConfiguration getConfig ();
 
+	
+	public String getPreloaderBaseURL()
+	{
+		return GWT.getHostPageBaseURL() + "assets/";
+	}
+	
 	@Override
 	public void onModuleLoad () {
 		GwtApplication.agentInfo = computeAgentInfo();
@@ -113,7 +120,7 @@ public abstract class GwtApplication implements EntryPoint, Application {
 		}
 
 		// initialize SoundManager2
-		SoundManager.init(GWT.getModuleBaseURL(), 9, true, new SoundManager.SoundManagerCallback(){
+		SoundManager.init(GWT.getModuleBaseURL(), 9, config.preferFlash, new SoundManager.SoundManagerCallback(){
 
 			@Override
 			public void onready () {
@@ -130,7 +137,11 @@ public abstract class GwtApplication implements EntryPoint, Application {
 						callback.update(state);
 						if (state.hasEnded()) {
 							getRootPanel().clear();
+							if(loadingListener != null)
+								loadingListener.beforeSetup();
 							setupLoop();
+							if(loadingListener != null)
+								loadingListener.afterSetup();
 						}
 					}
 				});
@@ -159,12 +170,13 @@ public abstract class GwtApplication implements EntryPoint, Application {
 		Gdx.audio = new GwtAudio();
 		Gdx.graphics = graphics;
 		Gdx.gl20 = graphics.getGL20();
-		Gdx.gl = graphics.getGLCommon();
+		Gdx.gl = Gdx.gl20;
 		Gdx.files = new GwtFiles(preloader);
 		this.input = new GwtInput(graphics.canvas);
 		Gdx.input = this.input;
 		this.net = new GwtNet();
 		Gdx.net = this.net;
+		this.clipboard = new GwtClipboard();
 
 		// tell listener about app creation
 		try {
@@ -205,7 +217,7 @@ public abstract class GwtApplication implements EntryPoint, Application {
 		}
 		runnablesHelper.clear();					
 		listener.render();
-		input.justTouched = false;
+		input.reset();
 	}
 	
 	public Panel getRootPanel () {
@@ -215,7 +227,7 @@ public abstract class GwtApplication implements EntryPoint, Application {
 	long loadStart = TimeUtils.nanoTime();
 
 	public Preloader createPreloader() {
-		return new Preloader();
+		return new Preloader(getPreloaderBaseURL());
 	}
 
 	public PreloaderCallback getPreloaderCallback () {
@@ -293,7 +305,7 @@ public abstract class GwtApplication implements EntryPoint, Application {
 	}
 
 	@Override
-	public void log (String tag, String message, Exception exception) {
+	public void log (String tag, String message, Throwable exception) {
 		if (logLevel >= LOG_INFO) {
 			checkLogLabel();
 			log.setText(log.getText() + "\n" + tag + ": " + message + "\n" + exception.getMessage() + "\n");
@@ -359,6 +371,11 @@ public abstract class GwtApplication implements EntryPoint, Application {
 	}
 
 	@Override
+	public int getLogLevel() {
+		return logLevel;
+	}
+
+	@Override
 	public ApplicationType getType () {
 		return ApplicationType.WebGL;
 	}
@@ -389,17 +406,8 @@ public abstract class GwtApplication implements EntryPoint, Application {
 	}
 
 	@Override
-	public Clipboard getClipboard() {
-		return new Clipboard() {
-			@Override
-			public String getContents () {
-				return null;
-			}
-
-			@Override
-			public void setContents (String content) {
-			}			
-		};		
+	public Clipboard getClipboard () {
+		return clipboard;
 	}
 	
 	@Override
@@ -480,6 +488,18 @@ public abstract class GwtApplication implements EntryPoint, Application {
 		return preloader;
 	}
 	
+	public CanvasElement getCanvasElement(){
+		return graphics.canvas;
+	}
+
+	public LoadingListener getLoadingListener () {
+		return loadingListener;
+	}
+
+	public void setLoadingListener (LoadingListener loadingListener) {
+		this.loadingListener = loadingListener;
+	}
+
 	@Override
 	public void addLifecycleListener (LifecycleListener listener) {
 		synchronized(lifecycleListeners) {
@@ -494,7 +514,22 @@ public abstract class GwtApplication implements EntryPoint, Application {
 		}		
 	}
 	
-	native static void consoleLog(String message) /*-{
+	native static public void consoleLog(String message) /*-{
 		console.log( "GWT: " + message );
 	}-*/;
+	
+	/**
+	 * LoadingListener interface main purpose is to do some things before or after {@link GwtApplication#setupLoop()}
+	 */
+	public interface LoadingListener{
+		/**
+		 * Method called before the setup
+		 */
+		public void beforeSetup();
+		
+		/**
+		 * Method called after the setup
+		 */
+		public void afterSetup();
+	}
 }

@@ -18,19 +18,19 @@ package com.badlogic.gdx.math;
 
 import java.util.Random;
 
-import com.badlogic.gdx.utils.NumberUtils;
-
 /** Utility and fast math functions.
  * <p>
  * Thanks to Riven on JavaGaming.org for the basis of sin/cos/atan2/floor/ceil.
  * @author Nathan Sweet */
-public class MathUtils {
+public final class MathUtils {
 	static public final float nanoToSec = 1 / 1000000000f;
 
 	// ---
-
+	static public final float FLOAT_ROUNDING_ERROR = 0.000001f; // 32 bits
 	static public final float PI = 3.1415927f;
 	static public final float PI2 = PI * 2;
+
+	static public final float E = 2.7182818f;
 
 	static private final int SIN_BITS = 14; // 16KB. Adjust for accuracy.
 	static private final int SIN_MASK = ~(-1 << SIN_BITS);
@@ -41,8 +41,10 @@ public class MathUtils {
 	static private final float radToIndex = SIN_COUNT / radFull;
 	static private final float degToIndex = SIN_COUNT / degFull;
 
+	/** multiply by this to convert from radians to degrees */
 	static public final float radiansToDegrees = 180f / PI;
 	static public final float radDeg = radiansToDegrees;
+	/** multiply by this to convert from degrees to radians */
 	static public final float degreesToRadians = PI / 180;
 	static public final float degRad = degreesToRadians;
 
@@ -56,23 +58,23 @@ public class MathUtils {
 		}
 	}
 
-	/** Returns the sine in radians. */
-	static public final float sin (float radians) {
+	/** Returns the sine in radians from a lookup table. */
+	static public float sin (float radians) {
 		return Sin.table[(int)(radians * radToIndex) & SIN_MASK];
 	}
 
-	/** Returns the cosine in radians. */
-	static public final float cos (float radians) {
+	/** Returns the cosine in radians from a lookup table. */
+	static public float cos (float radians) {
 		return Sin.table[(int)((radians + PI / 2) * radToIndex) & SIN_MASK];
 	}
 
-	/** Returns the sine in radians. */
-	static public final float sinDeg (float degrees) {
+	/** Returns the sine in radians from a lookup table. */
+	static public float sinDeg (float degrees) {
 		return Sin.table[(int)(degrees * degToIndex) & SIN_MASK];
 	}
 
-	/** Returns the cosine in radians. */
-	static public final float cosDeg (float degrees) {
+	/** Returns the cosine in radians from a lookup table. */
+	static public float cosDeg (float degrees) {
 		return Sin.table[(int)((degrees + 90) * degToIndex) & SIN_MASK];
 	}
 
@@ -99,7 +101,7 @@ public class MathUtils {
 	}
 
 	/** Returns atan2 in radians from a lookup table. */
-	static public final float atan2 (float y, float x) {
+	static public float atan2 (float y, float x) {
 		float add, mul;
 		if (x < 0) {
 			if (y < 0) {
@@ -128,36 +130,46 @@ public class MathUtils {
 
 	// ---
 
-	static public Random random = new Random();
+	static public Random random = new RandomXS128();
 
 	/** Returns a random number between 0 (inclusive) and the specified value (inclusive). */
-	static public final int random (int range) {
+	static public int random (int range) {
 		return random.nextInt(range + 1);
 	}
 
 	/** Returns a random number between start (inclusive) and end (inclusive). */
-	static public final int random (int start, int end) {
+	static public int random (int start, int end) {
 		return start + random.nextInt(end - start + 1);
 	}
 
 	/** Returns a random boolean value. */
-	static public final boolean randomBoolean () {
+	static public boolean randomBoolean () {
 		return random.nextBoolean();
 	}
 
+	/** Returns true if a random value between 0 and 1 is less than the specified value. */
+	static public boolean randomBoolean (float chance) {
+		return MathUtils.random() < chance;
+	}
+
 	/** Returns random number between 0.0 (inclusive) and 1.0 (exclusive). */
-	static public final float random () {
+	static public float random () {
 		return random.nextFloat();
 	}
 
 	/** Returns a random number between 0 (inclusive) and the specified value (exclusive). */
-	static public final float random (float range) {
+	static public float random (float range) {
 		return random.nextFloat() * range;
 	}
 
 	/** Returns a random number between start (inclusive) and end (exclusive). */
-	static public final float random (float start, float end) {
+	static public float random (float start, float end) {
 		return start + random.nextFloat() * (end - start);
+	}
+
+	/** Returns -1 or 1, randomly. */
+	static public int randomSign () {
+		return 1 | (random.nextInt() >> 31);
 	}
 
 	// ---
@@ -200,11 +212,16 @@ public class MathUtils {
 
 	// ---
 
+	/** Linearly interpolates between fromValue to toValue on progress position. */
+	static public float lerp (float fromValue, float toValue, float progress) {
+		return fromValue + (toValue - fromValue) * progress;
+	}
+
+	// ---
+
 	static private final int BIG_ENOUGH_INT = 16 * 1024;
 	static private final double BIG_ENOUGH_FLOOR = BIG_ENOUGH_INT;
 	static private final double CEIL = 0.9999999;
-// static private final double BIG_ENOUGH_CEIL = NumberUtils
-// .longBitsToDouble(NumberUtils.doubleToLongBits(BIG_ENOUGH_INT + 1) - 1);
 	static private final double BIG_ENOUGH_CEIL = 16384.999999999996;
 	static private final double BIG_ENOUGH_ROUND = BIG_ENOUGH_INT + 0.5f;
 
@@ -241,5 +258,41 @@ public class MathUtils {
 	/** Returns the closest integer to the specified float. This method will only properly round floats that are positive. */
 	static public int roundPositive (float x) {
 		return (int)(x + 0.5f);
+	}
+
+	/** Returns true if the value is zero (using the default tolerance as upper bound) */
+	static public boolean isZero (float value) {
+		return Math.abs(value) <= FLOAT_ROUNDING_ERROR;
+	}
+
+	/** Returns true if the value is zero.
+	 * @param tolerance represent an upper bound below which the value is considered zero. */
+	static public boolean isZero (float value, float tolerance) {
+		return Math.abs(value) <= tolerance;
+	}
+
+	/** Returns true if a is nearly equal to b. The function uses the default floating error tolerance.
+	 * @param a the first value.
+	 * @param b the second value. */
+	static public boolean isEqual (float a, float b) {
+		return Math.abs(a - b) <= FLOAT_ROUNDING_ERROR;
+	}
+
+	/** Returns true if a is nearly equal to b.
+	 * @param a the first value.
+	 * @param b the second value.
+	 * @param tolerance represent an upper bound below which the two values are considered equal. */
+	static public boolean isEqual (float a, float b, float tolerance) {
+		return Math.abs(a - b) <= tolerance;
+	}
+
+	/** @return the logarithm of x with base a */
+	static public float log (float a, float x) {
+		return (float)(Math.log(x) / Math.log(a));
+	}
+
+	/** @return the logarithm of x with base 2 */
+	static public float log2 (float x) {
+		return log(2, x);
 	}
 }

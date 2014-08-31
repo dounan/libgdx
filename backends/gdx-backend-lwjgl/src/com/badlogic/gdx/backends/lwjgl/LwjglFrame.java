@@ -28,13 +28,12 @@ import javax.swing.JFrame;
 public class LwjglFrame extends JFrame {
 	LwjglCanvas lwjglCanvas;
 
-	public LwjglFrame (ApplicationListener listener, String title, int width, int height, boolean useGL2) {
+	public LwjglFrame (ApplicationListener listener, String title, int width, int height) {
 		super(title);
 		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
 		config.title = title;
 		config.width = width;
 		config.height = height;
-		config.useGL20 = useGL2;
 		construct(listener, config);
 	}
 
@@ -72,6 +71,11 @@ public class LwjglFrame extends JFrame {
 			protected void exception (Throwable t) {
 				LwjglFrame.this.exception(t);
 			}
+
+			protected int getFrameRate () {
+				int frameRate = LwjglFrame.this.getFrameRate();
+				return frameRate == 0 ? super.getFrameRate() : frameRate;
+			}
 		};
 
 		Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -97,6 +101,10 @@ public class LwjglFrame extends JFrame {
 				lwjglCanvas.getCanvas().requestFocus();
 			}
 		});
+	}
+
+	protected int getFrameRate () {
+		return 0;
 	}
 
 	protected void exception (Throwable ex) {

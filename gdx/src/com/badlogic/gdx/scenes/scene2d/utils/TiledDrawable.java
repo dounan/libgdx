@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  ******************************************************************************/
+
 package com.badlogic.gdx.scenes.scene2d.utils;
 
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
 /** Draws a {@link TextureRegion} repeatedly to fill the area, instead of stretching it.
@@ -34,7 +35,7 @@ public class TiledDrawable extends TextureRegionDrawable {
 		super(drawable);
 	}
 
-	public void draw (SpriteBatch batch, float x, float y, float width, float height) {
+	public void draw (Batch batch, float x, float y, float width, float height) {
 		TextureRegion region = getRegion();
 		float regionWidth = region.getRegionWidth(), regionHeight = region.getRegionHeight();
 		float remainingX = width % regionWidth, remainingY = height % regionHeight;

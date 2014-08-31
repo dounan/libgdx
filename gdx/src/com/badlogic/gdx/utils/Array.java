@@ -90,7 +90,7 @@ public class Array<T> implements Iterable<T> {
 	 * @param ordered If false, methods that remove elements may change the order of other elements in the array, which avoids a
 	 *           memory copy. */
 	public Array (boolean ordered, T[] array, int start, int count) {
-		this(ordered, array.length, (Class)array.getClass().getComponentType());
+		this(ordered, count, (Class)array.getClass().getComponentType());
 		size = count;
 		System.arraycopy(array, 0, items, 0, size);
 	}
@@ -111,7 +111,7 @@ public class Array<T> implements Iterable<T> {
 		addAll((T[])array.items, offset, length);
 	}
 
-	public void addAll (T[] array) {
+	public void addAll (T... array) {
 		addAll(array, 0, array.length);
 	}
 
@@ -124,17 +124,17 @@ public class Array<T> implements Iterable<T> {
 	}
 
 	public T get (int index) {
-		if (index >= size) throw new IndexOutOfBoundsException(String.valueOf(index));
+		if (index >= size) throw new IndexOutOfBoundsException("index can't be >= size: " + index + " >= " + size);
 		return items[index];
 	}
 
 	public void set (int index, T value) {
-		if (index >= size) throw new IndexOutOfBoundsException(String.valueOf(index));
+		if (index >= size) throw new IndexOutOfBoundsException("index can't be >= size: " + index + " >= " + size);
 		items[index] = value;
 	}
 
 	public void insert (int index, T value) {
-		if (index > size) throw new IndexOutOfBoundsException(String.valueOf(index));
+		if (index > size) throw new IndexOutOfBoundsException("index can't be > size: " + index + " > " + size);
 		T[] items = this.items;
 		if (size == items.length) items = resize(Math.max(8, (int)(size * 1.75f)));
 		if (ordered)
@@ -146,8 +146,8 @@ public class Array<T> implements Iterable<T> {
 	}
 
 	public void swap (int first, int second) {
-		if (first >= size) throw new IndexOutOfBoundsException(String.valueOf(first));
-		if (second >= size) throw new IndexOutOfBoundsException(String.valueOf(second));
+		if (first >= size) throw new IndexOutOfBoundsException("first can't be >= size: " + first + " >= " + size);
+		if (second >= size) throw new IndexOutOfBoundsException("second can't be >= size: " + second + " >= " + size);
 		T[] items = this.items;
 		T firstValue = items[first];
 		items[first] = items[second];
@@ -201,7 +201,7 @@ public class Array<T> implements Iterable<T> {
 		return -1;
 	}
 
-	/** Removes value from an array if it exists.
+	/** Removes the first instance of the specified value in the array.
 	 * @param identity If true, == comparison will be used. If false, .equals() comparison will be used.
 	 * @return true if value was found and removed, false otherwise */
 	public boolean removeValue (T value, boolean identity) {
@@ -226,7 +226,7 @@ public class Array<T> implements Iterable<T> {
 
 	/** Removes and returns the item at the specified index. */
 	public T removeIndex (int index) {
-		if (index >= size) throw new IndexOutOfBoundsException(String.valueOf(index));
+		if (index >= size) throw new IndexOutOfBoundsException("index can't be >= size: " + index + " >= " + size);
 		T[] items = this.items;
 		T value = (T)items[index];
 		size--;
@@ -236,6 +236,22 @@ public class Array<T> implements Iterable<T> {
 			items[index] = items[size];
 		items[size] = null;
 		return value;
+	}
+
+	/** Removes the items between the specified indices, inclusive. */
+	public void removeRange (int start, int end) {
+		if (end >= size) throw new IndexOutOfBoundsException("end can't be >= size: " + end + " >= " + size);
+		if (start > end) throw new IndexOutOfBoundsException("start can't be > end: " + start + " > " + end);
+		T[] items = this.items;
+		int count = end - start + 1;
+		if (ordered)
+			System.arraycopy(items, start + count, items, start, size - (start + count));
+		else {
+			int lastIndex = this.size - 1;
+			for (int i = 0; i < count; i++)
+				items[start + i] = items[lastIndex - i];
+		}
+		size -= count;
 	}
 
 	/** Removes from this array all of elements contained in the specified array.
@@ -273,6 +289,7 @@ public class Array<T> implements Iterable<T> {
 
 	/** Removes and returns the last item. */
 	public T pop () {
+		if (size == 0) throw new IllegalStateException("Array is empty.");
 		--size;
 		T item = items[size];
 		items[size] = null;
@@ -281,6 +298,7 @@ public class Array<T> implements Iterable<T> {
 
 	/** Returns the last item. */
 	public T peek () {
+		if (size == 0) throw new IllegalStateException("Array is empty.");
 		return items[size - 1];
 	}
 
@@ -298,24 +316,26 @@ public class Array<T> implements Iterable<T> {
 	}
 
 	/** Reduces the size of the backing array to the size of the actual items. This is useful to release memory when many items have
-	 * been removed, or if it is known that more items will not be added. */
-	public void shrink () {
-		resize(size);
+	 * been removed, or if it is known that more items will not be added.
+	 * @return {@link #items} */
+	public T[] shrink () {
+		if (items.length != size) resize(size);
+		return items;
 	}
 
-	/** Increases the size of the backing array to acommodate the specified number of additional items. Useful before adding many
+	/** Increases the size of the backing array to accommodate the specified number of additional items. Useful before adding many
 	 * items to avoid multiple backing array resizes.
 	 * @return {@link #items} */
 	public T[] ensureCapacity (int additionalCapacity) {
 		int sizeNeeded = size + additionalCapacity;
-		if (sizeNeeded >= items.length) resize(Math.max(8, sizeNeeded));
+		if (sizeNeeded > items.length) resize(Math.max(8, sizeNeeded));
 		return items;
 	}
 
 	/** Creates a new backing array with the specified size containing the current items. */
 	protected T[] resize (int newSize) {
 		T[] items = this.items;
-		T[] newItems = (T[]) ArrayReflection.newInstance(items.getClass().getComponentType(), newSize);
+		T[] newItems = (T[])ArrayReflection.newInstance(items.getClass().getComponentType(), newSize);
 		System.arraycopy(items, 0, newItems, 0, Math.min(size, newItems.length));
 		this.items = newItems;
 		return newItems;
@@ -328,11 +348,38 @@ public class Array<T> implements Iterable<T> {
 	}
 
 	/** Sorts the array. This method is not thread safe (uses {@link Sort#instance()}). */
-	public void sort (Comparator<T> comparator) {
+	public void sort (Comparator<? super T> comparator) {
 		Sort.instance().sort(items, comparator, 0, size);
 	}
 
+	/** Selects the nth-lowest element from the Array according to Comparator ranking. This might partially sort the Array. The
+	 * array must have a size greater than 0, or a {@link com.badlogic.gdx.utils.GdxRuntimeException} will be thrown.
+	 * @see Select
+	 * @param comparator used for comparison
+	 * @param kthLowest rank of desired object according to comparison, n is based on ordinal numbers, not array indices. for min
+	 *           value use 1, for max value use size of array, using 0 results in runtime exception.
+	 * @return the value of the Nth lowest ranked object. */
+	public T selectRanked (Comparator<T> comparator, int kthLowest) {
+		if (kthLowest < 1) {
+			throw new GdxRuntimeException("nth_lowest must be greater than 0, 1 = first, 2 = second...");
+		}
+		return Select.instance().select(items, comparator, kthLowest, size);
+	}
+
+	/** @see Array#selectRanked(java.util.Comparator, int)
+	 * @param comparator used for comparison
+	 * @param kthLowest rank of desired object according to comparison, n is based on ordinal numbers, not array indices. for min
+	 *           value use 1, for max value use size of array, using 0 results in runtime exception.
+	 * @return the index of the Nth lowest ranked object. */
+	public int selectRankedIndex (Comparator<T> comparator, int kthLowest) {
+		if (kthLowest < 1) {
+			throw new GdxRuntimeException("nth_lowest must be greater than 0, 1 = first, 2 = second...");
+		}
+		return Select.instance().selectIndex(items, comparator, kthLowest, size);
+	}
+
 	public void reverse () {
+		T[] items = this.items;
 		for (int i = 0, lastIndex = size - 1, n = size / 2; i < n; i++) {
 			int ii = lastIndex - i;
 			T temp = items[i];
@@ -342,6 +389,7 @@ public class Array<T> implements Iterable<T> {
 	}
 
 	public void shuffle () {
+		T[] items = this.items;
 		for (int i = size - 1; i >= 0; i--) {
 			int ii = MathUtils.random(i);
 			T temp = items[i];
@@ -353,13 +401,12 @@ public class Array<T> implements Iterable<T> {
 	/** Returns an iterator for the items in the array. Remove is supported. Note that the same iterator instance is returned each
 	 * time this method is called. Use the {@link ArrayIterator} constructor for nested or multithreaded iteration. */
 	public Iterator<T> iterator () {
-		if (iterable == null) 
-			iterable = new ArrayIterable(this);
+		if (iterable == null) iterable = new ArrayIterable(this);
 		return iterable.iterator();
 	}
 
 	/** Returns an iterable for the selected items in the array. Remove is supported, but not between hasNext() and next(). Note
-	 * that the same iteratable instance is returned each time this method is called. Use the {@link Predicate.PredicateIterable}
+	 * that the same iterable instance is returned each time this method is called. Use the {@link Predicate.PredicateIterable}
 	 * constructor for nested or multithreaded iteration. */
 	public Iterable<T> select (Predicate<T> predicate) {
 		if (predicateIterable == null)
@@ -438,7 +485,22 @@ public class Array<T> implements Iterable<T> {
 		return buffer.toString();
 	}
 
-	static public class ArrayIterator<T> implements Iterator<T> {
+	/** @see #Array(Class) */
+	static public <T> Array<T> of (Class<T> arrayType) {
+		return new Array<T>(arrayType);
+	}
+
+	/** @see #Array(boolean, int, Class) */
+	static public <T> Array<T> of (boolean ordered, int capacity, Class<T> arrayType) {
+		return new Array<T>(ordered, capacity, arrayType);
+	}
+
+	/** @see #Array(Object[]) */
+	static public <T> Array<T> with (T... array) {
+		return new Array(array);
+	}
+
+	static public class ArrayIterator<T> implements Iterator<T>, Iterable<T> {
 		private final Array<T> array;
 		private final boolean allowRemove;
 		int index;
@@ -447,13 +509,14 @@ public class Array<T> implements Iterable<T> {
 		public ArrayIterator (Array<T> array) {
 			this(array, true);
 		}
-		
+
 		public ArrayIterator (Array<T> array, boolean allowRemove) {
 			this.array = array;
 			this.allowRemove = allowRemove;
 		}
 
 		public boolean hasNext () {
+			if (!valid) throw new GdxRuntimeException("#iterator() cannot be used nested.");
 			return index < array.size;
 		}
 
@@ -472,17 +535,21 @@ public class Array<T> implements Iterable<T> {
 		public void reset () {
 			index = 0;
 		}
+
+		public Iterator<T> iterator () {
+			return this;
+		}
 	}
-	
+
 	static public class ArrayIterable<T> implements Iterable<T> {
 		private final Array<T> array;
 		private final boolean allowRemove;
 		private ArrayIterator iterator1, iterator2;
-		
+
 		public ArrayIterable (Array<T> array) {
 			this(array, true);
 		}
-		
+
 		public ArrayIterable (Array<T> array, boolean allowRemove) {
 			this.array = array;
 			this.allowRemove = allowRemove;

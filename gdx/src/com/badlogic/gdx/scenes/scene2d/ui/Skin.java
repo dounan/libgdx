@@ -40,10 +40,10 @@ import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.Json.ReadOnlySerializer;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
-import com.badlogic.gdx.utils.ObjectMap.Entry;
 import com.badlogic.gdx.utils.SerializationException;
-
-import java.lang.reflect.Method;
+import com.badlogic.gdx.utils.reflect.ClassReflection;
+import com.badlogic.gdx.utils.reflect.Method;
+import com.badlogic.gdx.utils.reflect.ReflectionException;
 
 /** A skin stores resources for UI widgets to use (texture regions, ninepatches, fonts, colors, etc). Resources are named and can
  * be looked up by name and type. Resources can be described in JSON. Skin provides useful conversions, such as allowing access to
@@ -97,7 +97,7 @@ public class Skin implements Disposable {
 		}
 	}
 
-	/** Adds all named txeture regions from the atlas. The atlas will not be automatically disposed when the skin is disposed. */
+	/** Adds all named texture regions from the atlas. The atlas will not be automatically disposed when the skin is disposed. */
 	public void addRegions (TextureAtlas atlas) {
 		Array<AtlasRegion> regions = atlas.getRegions();
 		for (int i = 0, n = regions.size; i < n; i++) {
@@ -120,6 +120,13 @@ public class Skin implements Disposable {
 		}
 		typeResources.put(name, resource);
 	}
+
+	public void remove (String name, Class type) {
+		if (name == null) throw new IllegalArgumentException("name cannot be null.");
+		ObjectMap<String, Object> typeResources = resources.get(type);
+		typeResources.remove(name);
+	}
+
 
 	public <T> T get (Class<T> type) {
 		return get("default", type);
@@ -177,7 +184,7 @@ public class Skin implements Disposable {
 		Texture texture = optional(name, Texture.class);
 		if (texture == null) throw new GdxRuntimeException("No TextureRegion or Texture registered with name: " + name);
 		region = new TextureRegion(texture);
-		add(name, region, Texture.class);
+		add(name, region, TextureRegion.class);
 		return region;
 	}
 
@@ -188,12 +195,12 @@ public class Skin implements Disposable {
 		if (tiled != null) return tiled;
 
 		Drawable drawable = optional(name, Drawable.class);
-		if (tiled != null) {
+		if (drawable != null) {
 			if (!(drawable instanceof TiledDrawable)) {
 				throw new GdxRuntimeException("Drawable found but is not a TiledDrawable: " + name + ", "
 					+ drawable.getClass().getName());
 			}
-			return tiled;
+			return (TiledDrawable)drawable;
 		}
 
 		tiled = new TiledDrawable(getRegion(name));
@@ -406,7 +413,8 @@ public class Skin implements Disposable {
 		final Json json = new Json() {
 			public <T> T readValue (Class<T> type, Class elementType, JsonValue jsonData) {
 				// If the JSON is a string but the type is not, look up the actual value by name.
-				if (jsonData.isString() && !CharSequence.class.isAssignableFrom(type)) return get(jsonData.asString(), type);
+				if (jsonData.isString() && !ClassReflection.isAssignableFrom(CharSequence.class, type))
+					return get(jsonData.asString(), type);
 				return super.readValue(type, elementType, jsonData);
 			}
 		};
@@ -415,10 +423,10 @@ public class Skin implements Disposable {
 
 		json.setSerializer(Skin.class, new ReadOnlySerializer<Skin>() {
 			public Skin read (Json json, JsonValue typeToValueMap, Class ignored) {
-				for (JsonValue valueMap = typeToValueMap.child(); valueMap != null; valueMap = valueMap.next()) {
+				for (JsonValue valueMap = typeToValueMap.child; valueMap != null; valueMap = valueMap.next) {
 					try {
-						readNamedObjects(json, Class.forName(valueMap.name()), valueMap);
-					} catch (ClassNotFoundException ex) {
+						readNamedObjects(json, ClassReflection.forName(valueMap.name()), valueMap);
+					} catch (ReflectionException ex) {
 						throw new SerializationException(ex);
 					}
 				}
@@ -427,13 +435,14 @@ public class Skin implements Disposable {
 
 			private void readNamedObjects (Json json, Class type, JsonValue valueMap) {
 				Class addType = type == TintedDrawable.class ? Drawable.class : type;
-				for (JsonValue valueEntry = valueMap.child(); valueEntry != null; valueEntry = valueEntry.next()) {
+				for (JsonValue valueEntry = valueMap.child; valueEntry != null; valueEntry = valueEntry.next) {
 					Object object = json.readValue(type, valueEntry);
 					if (object == null) continue;
 					try {
 						add(valueEntry.name(), object, addType);
 					} catch (Exception ex) {
-						throw new SerializationException("Error reading " + type.getSimpleName() + ": " + valueEntry.name(), ex);
+						throw new SerializationException("Error reading " + ClassReflection.getSimpleName(type) + ": "
+							+ valueEntry.name(), ex);
 					}
 				}
 			}
@@ -442,6 +451,8 @@ public class Skin implements Disposable {
 		json.setSerializer(BitmapFont.class, new ReadOnlySerializer<BitmapFont>() {
 			public BitmapFont read (Json json, JsonValue jsonData, Class type) {
 				String path = json.readValue("file", String.class, jsonData);
+				int scaledSize = json.readValue("scaledSize", int.class, -1, jsonData);
+				Boolean flip = json.readValue("flip", Boolean.class, false, jsonData);
 
 				FileHandle fontFile = skinFile.parent().child(path);
 				if (!fontFile.exists()) fontFile = Gdx.files.internal(path);
@@ -450,16 +461,20 @@ public class Skin implements Disposable {
 				// Use a region with the same name as the font, else use a PNG file in the same directory as the FNT file.
 				String regionName = fontFile.nameWithoutExtension();
 				try {
+					BitmapFont font;
 					TextureRegion region = skin.optional(regionName, TextureRegion.class);
 					if (region != null)
-						return new BitmapFont(fontFile, region, false);
+						font = new BitmapFont(fontFile, region, flip);
 					else {
 						FileHandle imageFile = fontFile.parent().child(regionName + ".png");
 						if (imageFile.exists())
-							return new BitmapFont(fontFile, imageFile, false);
+							font = new BitmapFont(fontFile, imageFile, flip);
 						else
-							return new BitmapFont(fontFile, false);
+							font = new BitmapFont(fontFile, flip);
 					}
+					// Scaled size is the desired cap height to scale the font to.
+					if (scaledSize != -1) font.setScale(scaledSize / font.getCapHeight());
+					return font;
 				} catch (RuntimeException ex) {
 					throw new SerializationException("Error loading bitmap font: " + fontFile, ex);
 				}
@@ -491,7 +506,7 @@ public class Skin implements Disposable {
 	}
 
 	static private Method findMethod (Class type, String name) {
-		Method[] methods = type.getMethods();
+		Method[] methods = ClassReflection.getMethods(type);
 		for (int i = 0, n = methods.length; i < n; i++) {
 			Method method = methods[i];
 			if (method.getName().equals(name)) return method;

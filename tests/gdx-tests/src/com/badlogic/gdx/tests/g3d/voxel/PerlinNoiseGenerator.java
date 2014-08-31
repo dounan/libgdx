@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
 
 package com.badlogic.gdx.tests.g3d.voxel;
 
@@ -88,24 +103,24 @@ public class PerlinNoiseGenerator {
 		return generatePerlinNoise(baseNoise, octaveCount);
 	}
 
-	public static byte[] generateHeightMap(int width, int height, int min, int max, int octaveCount) {
+	public static byte[] generateHeightMap (int width, int height, int min, int max, int octaveCount) {
 		float[][] baseNoise = generateWhiteNoise(width, height);
 		float[][] noise = generatePerlinNoise(baseNoise, octaveCount);
 		byte[] bytes = new byte[baseNoise.length * baseNoise[0].length];
 		int idx = 0;
 		int range = max - min;
-		for(int y = 0; y < height; y++) {
-			for(int x = 0; x < width; x++) {
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
 				bytes[idx++] = (byte)(noise[x][y] * range + min);
 			}
 		}
 		return bytes;
 	}
-	
-	public static Pixmap generatePixmap(int width, int height, int min, int max, int octaveCount) {
+
+	public static Pixmap generatePixmap (int width, int height, int min, int max, int octaveCount) {
 		byte[] bytes = generateHeightMap(width, height, min, max, octaveCount);
 		Pixmap pixmap = new Pixmap(width, height, Format.RGBA8888);
-		for(int i = 0, idx = 0; i < bytes.length; i++) {
+		for (int i = 0, idx = 0; i < bytes.length; i++) {
 			byte val = bytes[i];
 			pixmap.getPixels().put(idx++, val);
 			pixmap.getPixels().put(idx++, val);
@@ -114,14 +129,14 @@ public class PerlinNoiseGenerator {
 		}
 		return pixmap;
 	}
-	
-	public static void generateVoxels(VoxelWorld voxelWorld, int min, int max, int octaveCount) {
+
+	public static void generateVoxels (VoxelWorld voxelWorld, int min, int max, int octaveCount) {
 		byte[] heightMap = PerlinNoiseGenerator.generateHeightMap(voxelWorld.voxelsX, voxelWorld.voxelsZ, min, max, octaveCount);
 		int idx = 0;
-		for(int z = 0; z < voxelWorld.voxelsZ; z++) {
-			for(int x = 0; x < voxelWorld.voxelsX; x++) {
+		for (int z = 0; z < voxelWorld.voxelsZ; z++) {
+			for (int x = 0; x < voxelWorld.voxelsX; x++) {
 				voxelWorld.setColumn(x, heightMap[idx++], z, (byte)1);
-//				voxelWorld.set(x, heightMap[idx++], z, (byte)1);
+// voxelWorld.set(x, heightMap[idx++], z, (byte)1);
 			}
 		}
 	}

@@ -39,7 +39,7 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.LifecycleListener;
 import com.badlogic.gdx.Net;
 import com.badlogic.gdx.Preferences;
-import com.badlogic.gdx.backends.openal.OpenALAudio;
+import com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Clipboard;
 import com.badlogic.gdx.utils.GdxRuntimeException;
@@ -65,11 +65,11 @@ public class LwjglAWTCanvas implements Application {
 	int logLevel = LOG_INFO;
 	private Cursor cursor;
 
-	public LwjglAWTCanvas (ApplicationListener listener, boolean useGL2) {
-		this(listener, useGL2, null);
+	public LwjglAWTCanvas (ApplicationListener listener) {
+		this(listener, null);
 	}
 
-	public LwjglAWTCanvas (ApplicationListener listener, boolean useGL2, LwjglAWTCanvas sharedContextCanvas) {
+	public LwjglAWTCanvas (ApplicationListener listener, LwjglAWTCanvas sharedContextCanvas) {
 		LwjglNativesLoader.load();
 
 		AWTGLCanvas sharedDrawable = sharedContextCanvas != null ? sharedContextCanvas.canvas : null;
@@ -102,7 +102,7 @@ public class LwjglAWTCanvas implements Application {
 			throw new GdxRuntimeException(ex);
 		}
 
-		graphics = new LwjglGraphics(canvas, useGL2) {
+		graphics = new LwjglGraphics(canvas) {
 			public void setTitle (String title) {
 				super.setTitle(title);
 				LwjglAWTCanvas.this.setTitle(title);
@@ -317,7 +317,7 @@ public class LwjglAWTCanvas implements Application {
 		if (preferences.containsKey(name)) {
 			return preferences.get(name);
 		} else {
-			Preferences prefs = new LwjglPreferences(name);
+			Preferences prefs = new LwjglPreferences(name, ".prefs/");
 			preferences.put(name, prefs);
 			return prefs;
 		}
@@ -357,7 +357,7 @@ public class LwjglAWTCanvas implements Application {
 	}
 
 	@Override
-	public void log (String tag, String message, Exception exception) {
+	public void log (String tag, String message, Throwable exception) {
 		if (logLevel >= LOG_INFO) {
 			System.out.println(tag + ": " + message);
 			exception.printStackTrace(System.out);
@@ -382,6 +382,11 @@ public class LwjglAWTCanvas implements Application {
 	@Override
 	public void setLogLevel (int logLevel) {
 		this.logLevel = logLevel;
+	}
+
+	@Override
+	public int getLogLevel() {
+		return logLevel;
 	}
 
 	@Override

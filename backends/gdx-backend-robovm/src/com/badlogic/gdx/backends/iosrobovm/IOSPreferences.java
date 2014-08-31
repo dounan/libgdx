@@ -1,13 +1,30 @@
+/*******************************************************************************
+ * Copyright 2011 See AUTHORS file.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
+
 package com.badlogic.gdx.backends.iosrobovm;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.robovm.cocoatouch.foundation.NSMutableDictionary;
-import org.robovm.cocoatouch.foundation.NSNumber;
-import org.robovm.cocoatouch.foundation.NSObject;
-import org.robovm.cocoatouch.foundation.NSString;
+import org.robovm.apple.foundation.NSMutableDictionary;
+import org.robovm.apple.foundation.NSNumber;
+import org.robovm.apple.foundation.NSObject;
+import org.robovm.apple.foundation.NSString;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Preferences;
@@ -23,32 +40,37 @@ public class IOSPreferences implements Preferences {
 	}
 
 	@Override
-	public void putBoolean (String key, boolean val) {
+	public Preferences putBoolean (String key, boolean val) {
 		nsDictionary.put(convertKey(key), NSNumber.valueOf(val));
+		return this;
 	}
 
 	@Override
-	public void putInteger (String key, int val) {
+	public Preferences putInteger (String key, int val) {
 		nsDictionary.put(convertKey(key), NSNumber.valueOf(val));
+		return this;
 	}
 
 	@Override
-	public void putLong (String key, long val) {
+	public Preferences putLong (String key, long val) {
 		nsDictionary.put(convertKey(key), NSNumber.valueOf(val));
+		return this;
 	}
 
 	@Override
-	public void putFloat (String key, float val) {
+	public Preferences putFloat (String key, float val) {
 		nsDictionary.put(convertKey(key), NSNumber.valueOf(val));
+		return this;
 	}
 
 	@Override
-	public void putString (String key, String val) {
+	public Preferences putString (String key, String val) {
 		nsDictionary.put(convertKey(key), new NSString(val));
+		return this;
 	}
 
 	@Override
-	public void put (Map<String, ?> vals) {
+	public Preferences put (Map<String, ?> vals) {
 		Set<String> keySet = vals.keySet();
 		for (String key : keySet) {
 			Object value = vals.get(key);
@@ -64,6 +86,7 @@ public class IOSPreferences implements Preferences {
 				putFloat(key, (Float)value);
 			}
 		}
+		return this;
 	}
 
 	@Override
@@ -133,12 +156,12 @@ public class IOSPreferences implements Preferences {
 
 	@Override
 	public Map<String, ?> get () {
-		 Map<String, Object> map = new HashMap<String, Object>();
-		 for (NSString key : nsDictionary.keySet()) {
-			 NSObject value = nsDictionary.get(key);
-			 map.put(key.toString(), value.toString());
-		 }
-		 return map;
+		Map<String, Object> map = new HashMap<String, Object>();
+		for (NSString key : nsDictionary.keySet()) {
+			NSObject value = nsDictionary.get(key);
+			map.put(key.toString(), value.toString());
+		}
+		return map;
 	}
 
 	@Override
@@ -162,7 +185,7 @@ public class IOSPreferences implements Preferences {
 
 	@Override
 	public void flush () {
-		boolean fileWritten = nsDictionary.writeToFile(filePath, false);
+		boolean fileWritten = nsDictionary.write(new File(filePath), false);
 		if (fileWritten)
 			Gdx.app.debug("IOSPreferences", "NSDictionary file written");
 		else
